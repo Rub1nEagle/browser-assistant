@@ -1,0 +1,34 @@
+# Single-service compose: one container runs Xvfb + x11vnc + noVNC under
+# supervisord, and you exec the agent CLI inside it. The browser profile
+# lives on a named volume so logins survive `docker compose down`.
+#
+# Apple Silicon note: if Chromium crashes on first launch, uncomment
+# `platform: linux/amd64` below — the arm64 Playwright image occasionally
+# has sandboxing flakes. amd64 under Rosetta is slower but stable.
+
+services:
+  agent:
+    build: .
+    image: browser-assistant
+    container_name: browser-assistant
+    # platform: linux/amd64
+    env_file: .env
+    environment:
+      DISPLAY: ":99"
+      BROWSER_PROFILE_DIR: /data/profile
+    ports:
+      - "6080:6080"   # noVNC for browser viewing
+      - "8000:8000"   # web UI — open http://localhost:8000
+    volumes:
+      - browser-profile:/data/profile
+      # Live-mount source for hot iteration. Comment these two out to
+      # pin everything to whatever was baked into the image.
+      - ./src:/app/src
+      - ./prompts:/app/prompts
+    shm_size: 2gb     # Chromium crashes on the default 64m
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+volumes:
+  browser-profile:

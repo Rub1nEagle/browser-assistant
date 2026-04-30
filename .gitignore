@@ -1,0 +1,44 @@
+# --- Python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+build/
+dist/
+.eggs/
+.venv/
+venv/
+
+# --- Tooling caches --------------------------------------------------------
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# --- Environment / secrets -------------------------------------------------
+.env
+.env.local
+*.env.local
+
+# --- Browser profile (CRITICAL: contains cookies and session tokens) -------
+# Local persistent profile when running outside Docker. Never commit.
+# In Docker the profile lives in a named volume, so nothing on disk to ignore.
+.browser-profile/
+.browser-profile-*/
+
+# --- Playwright / test artefacts -------------------------------------------
+playwright-report/
+test-results/
+
+# --- Logs ------------------------------------------------------------------
+*.log
+
+# --- Editors / OS ----------------------------------------------------------
+.DS_Store
+.idea/
+.vscode/
+
+# --- Misc ------------------------------------------------------------------
+node_modules/

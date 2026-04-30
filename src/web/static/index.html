@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>browser-assistant</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <div class="title">browser-assistant</div>
+    <div class="meter">
+      <span id="status-pill" class="pill idle">idle</span>
+      <span class="cost-label">cost</span>
+      <span id="cost-meter" class="cost-value">$0.0000</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="left">
+      <div class="task-input-row">
+        <textarea id="task-input" rows="3" placeholder="describe what to do; the agent will figure out the rest"></textarea>
+        <div class="task-buttons">
+          <button id="run-btn">run</button>
+          <button id="cancel-btn" disabled>cancel</button>
+        </div>
+      </div>
+
+      <div id="timeline" class="timeline">
+        <div class="hint">Start by typing a task and pressing run. Watch the browser drive itself in the noVNC pane on the right; tool calls stream here.</div>
+      </div>
+
+      <div id="ask-bar" class="ask-bar hidden">
+        <div class="ask-question" id="ask-question"></div>
+        <div class="ask-input-row">
+          <input id="ask-input" type="text" placeholder="answer…" autocomplete="off">
+          <button id="ask-submit">send</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="right">
+      <div class="right-header">
+        <span>browser (noVNC)</span>
+        <a id="novnc-link" href="#" target="_blank">open in new tab ↗</a>
+      </div>
+      <div class="vnc-frame">
+        <iframe id="vnc-iframe" allow="clipboard-read; clipboard-write" title="noVNC"></iframe>
+      </div>
+      <div class="scratchpad">
+        <div class="scratchpad-header">scratchpad</div>
+        <div id="scratchpad-body" class="scratchpad-body"><div class="scratchpad-empty">empty</div></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
