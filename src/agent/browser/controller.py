@@ -44,6 +44,10 @@ class BrowserController:
         self._context: Optional[BrowserContext] = None
         self._page: Optional[Page] = None
         self._refs: set[str] = set()
+        # `ref → "<role> 'name'"` derived from the latest observe(). The
+        # destructive-action guardrail in the tool registry reads this to
+        # decide whether a click/type/etc. needs user confirmation.
+        self._ref_labels: dict[str, str] = {}
 
     async def start(self) -> None:
         self._profile_dir.mkdir(parents=True, exist_ok=True)
@@ -104,7 +108,13 @@ class BrowserController:
             pass
         result = await observe(self.page)
         self._refs = result.refs
+        self._ref_labels = result.labels
         return result
+
+    def label_for(self, element_id: str) -> str:
+        """Best-effort short label for a ref from the latest observe.
+        Returns an empty string if the ref has no quoted name."""
+        return self._ref_labels.get(element_id, "")
 
     def _resolve(self, element_id: str):
         ref = str(element_id).strip()

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Optional
 
@@ -11,6 +12,7 @@ from ..io.channel import IOChannel
 from ..llm.base import LLMClient
 from ..llm.types import Tool
 from .extract import run_extract
+from .policy import detect_destructive, parse_confirmation
 from .schemas import (
     AskUserArgs,
     ClickArgs,
@@ -38,6 +40,10 @@ class ToolContext:
     llm: Optional[LLMClient] = None
     channel: Optional[IOChannel] = None
     extractor_system: str = ""
+    confirm_destructive: bool = True
+    # Patterns the user has approved with "always" for the rest of the run —
+    # we don't ask twice for the same kind of action.
+    confirm_allowed_patterns: set[str] = field(default_factory=set)
 
 
 @dataclass
@@ -82,12 +88,60 @@ class ToolRegistry:
                 content=f"invalid arguments for {name}: {_format_validation_error(e)}",
                 is_error=True,
             )
+        validated_args = validated.model_dump()
+
+        # Destructive-action gate. The agent's prompt already nudges it to
+        # stop before irreversible actions; this is the substring belt to
+        # the prompt's suspenders.
+        gate = await _confirm_if_destructive(name, validated_args, ctx)
+        if gate is not None:
+            return gate
+
         try:
-            return await spec.handler(ctx, **validated.model_dump())
+            return await spec.handler(ctx, **validated_args)
         except StaleElementError as e:
             return ToolResult(content=str(e), is_error=True)
         except BrowserError as e:
             return ToolResult(content=f"browser error: {e}", is_error=True)
+
+
+async def _confirm_if_destructive(
+    name: str, args: dict[str, Any], ctx: ToolContext
+) -> ToolResult | None:
+    """If the call looks destructive, ask the user; on no/timeout, return
+    a tool_result error so the agent sees the cancellation in-band."""
+    if not ctx.confirm_destructive or ctx.channel is None:
+        return None
+
+    label = ""
+    if "element_id" in args:
+        label = ctx.controller.label_for(args["element_id"])
+    matched = detect_destructive(tool_name=name, args=args, ref_label=label)
+    if matched is None or matched in ctx.confirm_allowed_patterns:
+        return None
+
+    args_pretty = json.dumps(args, ensure_ascii=False)
+    target = f"{label}" if label else f"ref {args.get('element_id', '<no element>')}"
+    question = (
+        f"Confirmation needed: {name}({args_pretty}) on {target} matched "
+        f"destructive pattern '{matched}'. "
+        "Reply 'yes' to allow once, 'always' to allow this kind for the "
+        "rest of the run, anything else to cancel."
+    )
+    answer = await ctx.channel.ask(question)
+    decision = parse_confirmation(answer)
+    if decision == "always":
+        ctx.confirm_allowed_patterns.add(matched)
+        return None
+    if decision == "yes":
+        return None
+    return ToolResult(
+        content=(
+            f"action cancelled by user: {name} matched destructive pattern "
+            f"'{matched}'. Pick a different element or call done with an explanation."
+        ),
+        is_error=True,
+    )
 
 
 def _format_validation_error(err: ValidationError) -> str:

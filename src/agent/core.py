@@ -233,6 +233,7 @@ async def build_agent(
         llm=llm,
         channel=channel or StdinChannel(),
         extractor_system=extractor_prompt,
+        confirm_destructive=settings.confirm_destructive,
     )
     agent = Agent(
         llm=llm,

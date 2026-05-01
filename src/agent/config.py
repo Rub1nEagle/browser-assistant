@@ -22,6 +22,10 @@ class Settings:
     max_steps: int
     max_cost_usd: float
     profile_dir: Path
+    # When True, the tool registry intercepts plausibly-destructive actions
+    # (delete/send/pay/confirm/...) and asks the user before executing.
+    # Set to False for fully unattended runs in trusted environments.
+    confirm_destructive: bool = True
 
     @classmethod
     def load(cls) -> "Settings":
@@ -55,4 +59,11 @@ class Settings:
             max_steps=int(os.getenv("MAX_STEPS", "60")),
             max_cost_usd=float(os.getenv("MAX_COST_USD", "2.0")),
             profile_dir=Path(os.getenv("BROWSER_PROFILE_DIR", "./.browser-profile")).resolve(),
+            confirm_destructive=_parse_bool(os.getenv("CONFIRM_DESTRUCTIVE"), default=True),
         )
+
+
+def _parse_bool(value: str | None, *, default: bool) -> bool:
+    if value is None or value == "":
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on", "y"}
