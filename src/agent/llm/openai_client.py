@@ -171,7 +171,7 @@ class OpenAIClient(LLMClient):
         output_tokens: int,
         cache_read_tokens: int = 0,
         cache_creation_tokens: int = 0,
-    ) -> float:
+    ) -> float | None:
         model_lc = self.model.lower()
         # OpenRouter and similar prefix the model with `<provider>/`. Strip it
         # so our pricing table (keyed by raw model name) still matches.
@@ -181,7 +181,7 @@ class OpenAIClient(LLMClient):
             model_lc = model_lc.rsplit("/", 1)[-1]
         rates = next((r for prefix, r in _PRICING if model_lc.startswith(prefix)), None)
         if rates is None:
-            return 0.0
+            return None
         cache_rate = rates.get("cache_read", rates["in"])
         return (
             input_tokens * rates["in"]

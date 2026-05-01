@@ -120,10 +120,10 @@ class AnthropicClient(LLMClient):
         output_tokens: int,
         cache_read_tokens: int = 0,
         cache_creation_tokens: int = 0,
-    ) -> float:
+    ) -> float | None:
         rates = next((r for prefix, r in _PRICING if self.model.startswith(prefix)), None)
         if rates is None:
-            return 0.0
+            return None
         # Anthropic counts cached tokens separately — `input_tokens` is the
         # uncached portion already. So we sum the four buckets independently.
         return (

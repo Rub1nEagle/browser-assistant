@@ -25,5 +25,15 @@ class LLMClient(ABC):
     ) -> StepResponse: ...
 
     @abstractmethod
-    def estimate_cost_usd(self, *, input_tokens: int, output_tokens: int,
-                         cache_read_tokens: int = 0, cache_creation_tokens: int = 0) -> float: ...
+    def estimate_cost_usd(
+        self,
+        *,
+        input_tokens: int,
+        output_tokens: int,
+        cache_read_tokens: int = 0,
+        cache_creation_tokens: int = 0,
+    ) -> float | None:
+        """Return USD cost for the step, or `None` if pricing for this
+        model is unknown. Callers MUST treat `None` as 'unknown', not as
+        zero — otherwise MAX_COST_USD becomes a silent no-op."""
+        ...

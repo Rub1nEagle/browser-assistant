@@ -39,7 +39,7 @@ def _format_args(args: dict) -> str:
 
 
 def _make_console_listener(console: Console):
-    state = {"step": 0, "cumulative_cost": 0.0}
+    state = {"step": 0, "cumulative_cost": 0.0, "cost_partial": False}
 
     def on_event(event: Event) -> None:
         if isinstance(event, AgentStarted):
@@ -48,12 +48,20 @@ def _make_console_listener(console: Console):
             state["step"] = event.step
             console.print(f"[dim][step {event.step}] thinking…[/dim]")
         elif isinstance(event, LLMRequestCompleted):
-            state["cumulative_cost"] += event.cost_usd
+            if event.cost_usd is None:
+                state["cost_partial"] = True
+                step_str = "?"
+            else:
+                state["cumulative_cost"] += event.cost_usd
+                step_str = f"${event.cost_usd:.4f}"
+            total_str = f"${state['cumulative_cost']:.4f}"
+            if state["cost_partial"]:
+                total_str += "+?"
             console.print(
                 f"[dim][step {event.step}] in={event.input_tokens} "
                 f"out={event.output_tokens} cache_r={event.cache_read_tokens} "
                 f"cache_w={event.cache_creation_tokens} "
-                f"step=${event.cost_usd:.4f} total=${state['cumulative_cost']:.4f}[/dim]"
+                f"step={step_str} total={total_str}[/dim]"
             )
         elif isinstance(event, AgentThinking):
             console.print(Text(event.text, style="italic dim"))

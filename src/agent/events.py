@@ -26,7 +26,10 @@ class LLMRequestCompleted(Event):
     output_tokens: int
     cache_read_tokens: int = 0
     cache_creation_tokens: int = 0
-    cost_usd: float = 0.0
+    # `None` means the model's pricing isn't in our table — distinct from
+    # "$0.00" so the UI can render "?" and MAX_COST_USD doesn't silently
+    # treat it as free.
+    cost_usd: float | None = 0.0
 
 
 @dataclass

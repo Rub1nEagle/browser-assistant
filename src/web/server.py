@@ -53,6 +53,8 @@ class AppState:
         # cost meter (LLMRequestCompleted carries per-step cost too, but
         # the UI prefers a single running total).
         self._cumulative_cost = 0.0
+        # True when at least one step had unknown pricing — UI appends "+?".
+        self._cost_partial = False
         self.bus.subscribe(self._on_event)
 
     # --- WS plumbing -----------------------------------------------------
@@ -65,10 +67,14 @@ class AppState:
 
     async def _on_event(self, event: Event) -> None:
         if isinstance(event, LLMRequestCompleted):
-            self._cumulative_cost += event.cost_usd
+            if event.cost_usd is None:
+                self._cost_partial = True
+            else:
+                self._cumulative_cost += event.cost_usd
         payload = _serialize(event)
         if isinstance(event, LLMRequestCompleted):
             payload["cumulative_cost_usd"] = self._cumulative_cost
+            payload["cost_partial"] = self._cost_partial
         for q in list(self._queues):
             try:
                 q.put_nowait(payload)
@@ -85,6 +91,7 @@ class AppState:
         if self.is_running():
             raise RuntimeError("a task is already running")
         self._cumulative_cost = 0.0
+        self._cost_partial = False
         self._current = asyncio.create_task(self._run(task))
 
     async def _run(self, task: str) -> None:

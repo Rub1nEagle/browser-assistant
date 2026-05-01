@@ -92,12 +92,16 @@ function handleEvent(msg) {
       appendEntry(`<span style="color:#6e7681">[step ${msg.step}] thinking…</span>`, "entry usage");
       break;
     case "LLMRequestCompleted": {
-      const cost = (msg.cumulative_cost_usd ?? msg.cost_usd ?? 0).toFixed(4);
-      $("cost-meter").textContent = `$${cost}`;
+      const cumulative = (msg.cumulative_cost_usd ?? 0).toFixed(4);
+      const partialMark = msg.cost_partial ? "+?" : "";
+      $("cost-meter").textContent = `$${cumulative}${partialMark}`;
+      const stepStr = msg.cost_usd === null || msg.cost_usd === undefined
+        ? "?"
+        : `$${msg.cost_usd.toFixed(4)}`;
       appendEntry(
         `<span>[step ${msg.step}] in=${msg.input_tokens} out=${msg.output_tokens} ` +
         `cache_r=${msg.cache_read_tokens} cache_w=${msg.cache_creation_tokens} ` +
-        `step=$${msg.cost_usd.toFixed(4)} total=$${cost}</span>`,
+        `step=${stepStr} total=$${cumulative}${partialMark}</span>`,
         "entry usage"
       );
       break;

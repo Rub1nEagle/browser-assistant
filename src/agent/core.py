@@ -58,6 +58,8 @@ class AgentRun:
     failed_reason: str | None = None
     steps: int = 0
     cost_usd: float = 0.0
+    # True if at least one step couldn't be priced — sum is partial.
+    cost_partial: bool = False
 
 
 @dataclass
@@ -92,7 +94,10 @@ class Agent:
                 cache_read_tokens=response.usage.cache_read_tokens,
                 cache_creation_tokens=response.usage.cache_creation_tokens,
             )
-            run.cost_usd += cost
+            if cost is None:
+                run.cost_partial = True
+            else:
+                run.cost_usd += cost
             await self.bus.emit(LLMRequestCompleted(
                 step=step,
                 input_tokens=response.usage.input_tokens,
