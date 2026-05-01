@@ -16,9 +16,12 @@ services:
     environment:
       DISPLAY: ":99"
       BROWSER_PROFILE_DIR: /data/profile
+    # Bound to loopback only. Without this, putting the container on a
+    # public host exposes a logged-in Chromium and an un-auth'd agent UI
+    # to the whole internet. Override only if you've added auth in front.
     ports:
-      - "6080:6080"   # noVNC for browser viewing
-      - "8000:8000"   # web UI — open http://localhost:8000
+      - "127.0.0.1:6080:6080"   # noVNC for browser viewing
+      - "127.0.0.1:8000:8000"   # web UI — open http://localhost:8000
     volumes:
       - browser-profile:/data/profile
       # Live-mount source for hot iteration. Comment these two out to
