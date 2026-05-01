@@ -56,7 +56,8 @@ The arm64 Playwright image occasionally has Chromium sandbox flakes. If the brow
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -e .
+.venv/bin/pip install -r requirements.txt -e .
+# (Use requirements-dev.txt instead if you want pytest/ruff.)
 .venv/bin/playwright install chromium
 
 cp .env.example .env
@@ -64,6 +65,8 @@ cp .env.example .env
 
 .venv/bin/python -m agent run "open https://example.com, click the link, tell me the destination URL"
 ```
+
+`requirements.txt` pins exact direct-dep versions for reproducibility. `pyproject.toml` keeps the loose library ranges; the lock-file is what builds and CI should follow.
 
 `BROWSER_PROFILE_DIR` defaults to `./.browser-profile` — Chromium will keep cookies/storage there between runs.
 

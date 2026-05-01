@@ -22,12 +22,17 @@ RUN apt-get update \
 
 WORKDIR /app
 
-# Source first; pip install -e needs it. The base image is already heavy
-# enough that a smarter cache layout buys little.
+# requirements.txt pins the direct deps so the image is reproducible.
+# Install pinned deps in a separate layer (cached unless the file changes),
+# then install the package itself with --no-deps so pip doesn't try to
+# pull in fresh transitives.
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
 COPY pyproject.toml ./
 COPY src/ ./src/
 COPY prompts/ ./prompts/
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir --no-deps -e .
 
 # Browsers ship pre-installed under /ms-playwright in this base image —
 # do NOT run `playwright install` here, it would re-download them.
