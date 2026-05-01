@@ -68,6 +68,15 @@ cp .env.example .env
 
 `requirements.txt` pins exact direct-dep versions for reproducibility. `pyproject.toml` keeps the loose library ranges; the lock-file is what builds and CI should follow.
 
+### Tests
+
+```bash
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pytest -q
+```
+
+Covers context compression, OpenAI ↔ Block message conversion, post-action telemetry heuristic, Pydantic tool-arg validation, the destructive-action policy, and cost estimation for known/unknown models. No live LLM or browser calls — runs in <1s.
+
 `BROWSER_PROFILE_DIR` defaults to `./.browser-profile` — Chromium will keep cookies/storage there between runs.
 
 ---
