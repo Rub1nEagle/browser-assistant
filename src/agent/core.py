@@ -62,6 +62,13 @@ class AgentRun:
     cost_partial: bool = False
 
 
+# A turn signature is the tuple of (tool_name, args_json) for every tool
+# call the model emitted in one assistant message. Storing the whole turn
+# rather than each call avoids false positives when the model legitimately
+# emits the same tool twice in a single turn (e.g. remember + observe).
+TurnSignature = tuple[tuple[str, str], ...]
+
+
 @dataclass
 class Agent:
     llm: LLMClient
@@ -70,7 +77,7 @@ class Agent:
     bus: EventBus
     settings: Settings
     context: ContextManager
-    _recent_calls: deque[tuple[str, str]] = field(
+    _recent_turns: deque[TurnSignature] = field(
         default_factory=lambda: deque(maxlen=_REPEAT_THRESHOLD)
     )
 
@@ -121,7 +128,6 @@ class Agent:
             result_blocks: list[ToolResultBlock] = []
             terminal_report: str | None = None
             for call in tool_calls:
-                self._recent_calls.append(_call_signature(call))
                 await self.bus.emit(ToolCallStarted(tool=call.name, args=call.input))
 
                 pre = None
@@ -151,6 +157,12 @@ class Agent:
                 if result.is_terminal and terminal_report is None:
                     terminal_report = result.final_report or result.content
 
+            # Track the whole turn (one entry per assistant message), so
+            # the repeat detector triggers on three identical *turns*, not
+            # three identical individual calls within a single turn.
+            self._recent_turns.append(
+                tuple(_call_signature(c) for c in tool_calls)
+            )
             self._maybe_append_repeat_note(result_blocks)
             self.context.record_tool_results(result_blocks)
             await self.bus.emit(ScratchpadUpdated(entries=self.context.list_scratchpad()))
@@ -173,18 +185,20 @@ class Agent:
         return run
 
     def _maybe_append_repeat_note(self, results: list[ToolResultBlock]) -> None:
-        if len(self._recent_calls) < _REPEAT_THRESHOLD:
+        if len(self._recent_turns) < _REPEAT_THRESHOLD:
             return
-        if len(set(self._recent_calls)) != 1:
+        if len(set(self._recent_turns)) != 1:
             return
         if not results:
             return
-        name, _ = self._recent_calls[-1]
+        last_turn = self._recent_turns[-1]
+        names = ", ".join(name for name, _ in last_turn) or "(no calls)"
         note = (
-            f"\n\n[repeated-action detector] You have called {name} with the same "
-            f"arguments {_REPEAT_THRESHOLD} times in a row. Either it is failing "
-            "silently or you are stuck. Stop repeating: re-observe to see fresh "
-            "state, try a different element/approach, ask_user, or done with an "
+            f"\n\n[repeated-action detector] You have made the same turn "
+            f"({names}) with identical arguments {_REPEAT_THRESHOLD} times "
+            "in a row. Either the action is failing silently or you are "
+            "stuck. Stop repeating: re-observe to see fresh state, try a "
+            "different element/approach, ask_user, or done with an "
             "explanation."
         )
         # Append to the last result so the agent sees it together with what
@@ -196,7 +210,7 @@ class Agent:
             is_error=last.is_error,
         )
         # Reset so we don't keep nagging on the same streak.
-        self._recent_calls.clear()
+        self._recent_turns.clear()
 
 
 async def build_agent(
