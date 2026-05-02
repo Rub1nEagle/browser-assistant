@@ -49,6 +49,10 @@ class AppState:
         self.web_channel = WebChannel(self.bus)
         self._queues: set[asyncio.Queue] = set()
         self._current: asyncio.Task | None = None
+        # Guards the check-and-create-task pair in start_run so two
+        # concurrent WS clients can't both spawn a background _run() —
+        # the second would orphan the first task and clobber `_current`.
+        self._run_lock = asyncio.Lock()
         # Cumulative cost of the current run, exposed to the UI for the
         # cost meter (LLMRequestCompleted carries per-step cost too, but
         # the UI prefers a single running total).
@@ -88,30 +92,40 @@ class AppState:
         return self._current is not None and not self._current.done()
 
     async def start_run(self, task: str) -> None:
-        if self.is_running():
-            raise RuntimeError("a task is already running")
-        self._cumulative_cost = 0.0
-        self._cost_partial = False
-        self._current = asyncio.create_task(self._run(task))
+        async with self._run_lock:
+            if self.is_running():
+                raise RuntimeError("a task is already running")
+            self._cumulative_cost = 0.0
+            self._cost_partial = False
+            self._current = asyncio.create_task(self._run(task))
 
     async def _run(self, task: str) -> None:
-        settings = Settings.load()
-        system_prompt = (PROMPTS_DIR / "system.md").read_text(encoding="utf-8")
-        extractor_prompt = (PROMPTS_DIR / "extractor.md").read_text(encoding="utf-8")
-        agent, controller = await build_agent(
-            settings=settings,
-            bus=self.bus,
-            system_prompt=system_prompt,
-            extractor_prompt=extractor_prompt,
-            channel=self.web_channel,
-        )
-        await controller.start()
+        # Wrap the whole body so any failure — Settings.load(), missing
+        # prompt file, build_agent() raising, controller.start() crashing
+        # on a profile lock — surfaces as a TaskFailed event in the UI
+        # instead of dying as an unhandled exception in asyncio's logger.
+        controller = None
         try:
+            settings = Settings.load()
+            system_prompt = (PROMPTS_DIR / "system.md").read_text(encoding="utf-8")
+            extractor_prompt = (PROMPTS_DIR / "extractor.md").read_text(encoding="utf-8")
+            agent, controller = await build_agent(
+                settings=settings,
+                bus=self.bus,
+                system_prompt=system_prompt,
+                extractor_prompt=extractor_prompt,
+                channel=self.web_channel,
+            )
+            await controller.start()
             await agent.run(task)
+        except asyncio.CancelledError:
+            await self.bus.emit(TaskFailed(reason="run cancelled by user"))
+            raise
         except Exception as e:  # noqa: BLE001 — surface any crash to the UI
             await self.bus.emit(TaskFailed(reason=f"unexpected error: {e!r}"))
         finally:
-            await controller.stop()
+            if controller is not None:
+                await controller.stop()
             self.web_channel.cancel("run ended")
 
     async def cancel_run(self) -> None:
