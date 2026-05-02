@@ -61,13 +61,25 @@ class BrowserController:
         self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
 
     async def stop(self) -> None:
-        if self._context:
-            await self._context.close()
-            self._context = None
-        if self._pw:
-            await self._pw.stop()
-            self._pw = None
-        self._page = None
+        # Tear down both halves independently. Without try/finally a failure
+        # in context.close() (common after a page crash) would skip
+        # playwright.stop(), leaving the driver process and the profile lock
+        # behind — the next start() then trips over its own corpse.
+        try:
+            if self._context is not None:
+                try:
+                    await self._context.close()
+                except PlaywrightError:
+                    pass
+                self._context = None
+        finally:
+            if self._pw is not None:
+                try:
+                    await self._pw.stop()
+                except PlaywrightError:
+                    pass
+                self._pw = None
+            self._page = None
 
     @property
     def page(self) -> Page:
@@ -88,14 +100,19 @@ class BrowserController:
         return f"navigated to {self.page.url}"
 
     async def go_back(self) -> str:
-        response = await self.page.go_back(wait_until="domcontentloaded")
-        if response is None:
+        # Playwright returns None for both 'no history' and 'navigation
+        # didn't produce a Response' (cached page, data: scheme, etc.) —
+        # so the URL diff is the honest signal here.
+        url_before = self.page.url
+        await self.page.go_back(wait_until="domcontentloaded")
+        if self.page.url == url_before:
             return "no previous page in history"
         return f"went back to {self.page.url}"
 
     async def go_forward(self) -> str:
-        response = await self.page.go_forward(wait_until="domcontentloaded")
-        if response is None:
+        url_before = self.page.url
+        await self.page.go_forward(wait_until="domcontentloaded")
+        if self.page.url == url_before:
             return "no forward page in history"
         return f"went forward to {self.page.url}"
 
@@ -236,7 +253,12 @@ class BrowserController:
     # --- Internal ---------------------------------------------------------
 
     async def _settle(self) -> None:
+        # Many SPAs hold long-polling/WebSocket connections open, so
+        # `networkidle` never fires. The previous 3s wait was paid in full
+        # on every mutating action. 500ms is plenty for synchronous UI
+        # transitions; the agent can still call wait_for() explicitly when
+        # it expects a real network round-trip.
         try:
-            await self.page.wait_for_load_state("networkidle", timeout=3_000)
+            await self.page.wait_for_load_state("networkidle", timeout=500)
         except PlaywrightTimeout:
             pass
