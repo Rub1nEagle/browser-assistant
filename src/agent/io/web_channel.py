@@ -35,12 +35,24 @@ class WebChannel(IOChannel):
     def deliver_answer(self, answer: str) -> bool:
         """Called by the WebSocket endpoint when the user replies.
         Returns True if a pending ask was waiting, False otherwise."""
-        if self._pending is None or self._pending.done():
+        pending = self._pending
+        if pending is None or pending.done():
             return False
-        self._pending.set_result(answer)
+        try:
+            pending.set_result(answer)
+        except asyncio.InvalidStateError:
+            # cancel() raced us between the done()-check and set_result.
+            return False
         return True
 
     def cancel(self, reason: str = "cancelled") -> None:
-        """Wake up a hanging ask if the run is aborted."""
-        if self._pending is not None and not self._pending.done():
-            self._pending.set_result(f"(no answer: {reason})")
+        """Wake up a hanging ask if the run is aborted. Safe to call
+        concurrently with deliver_answer — the loser silently no-ops
+        instead of crashing the run."""
+        pending = self._pending
+        if pending is None or pending.done():
+            return
+        try:
+            pending.set_result(f"(no answer: {reason})")
+        except asyncio.InvalidStateError:
+            pass
