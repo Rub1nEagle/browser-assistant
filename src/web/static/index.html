@@ -1,58 +1,213 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>browser-assistant</title>
+  <title>Browser Assistant</title>
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A4%96%3C/text%3E%3C/svg%3E">
 </head>
 <body>
-  <header>
-    <div class="title">browser-assistant</div>
-    <div class="meter">
-      <span id="status-pill" class="pill idle">idle</span>
-      <span class="cost-label">cost</span>
-      <span id="cost-meter" class="cost-value">$0.0000</span>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-logo">🤖</span>
+      <span class="brand-name">Browser Assistant</span>
+      <span class="brand-sub">AI-агент, который сам водит браузер</span>
+    </div>
+    <div class="topbar-actions">
+      <div class="status-group">
+        <span id="status-pill" class="pill idle">
+          <span class="pill-dot"></span>
+          <span class="pill-text">готов</span>
+        </span>
+      </div>
+      <div class="cost-group" title="Сколько потрачено за текущую задачу">
+        <span class="cost-label">стоимость</span>
+        <span id="cost-meter" class="cost-value">$0.0000</span>
+        <div class="cost-bar" aria-hidden="true">
+          <div id="cost-bar-fill" class="cost-bar-fill"></div>
+        </div>
+      </div>
+      <button id="settings-btn" class="icon-btn" title="Настройки и сведения о сессии">⚙</button>
+      <button id="theme-btn" class="icon-btn" title="Тема">☀</button>
     </div>
   </header>
 
-  <main>
-    <section class="left">
-      <div class="task-input-row">
-        <textarea id="task-input" rows="3" placeholder="describe what to do; the agent will figure out the rest"></textarea>
-        <div class="task-buttons">
-          <button id="run-btn">run</button>
-          <button id="cancel-btn" disabled>cancel</button>
+  <main class="layout">
+    <!-- LEFT: composer + timeline -->
+    <section class="pane pane-left">
+      <div class="composer">
+        <textarea
+          id="task-input"
+          rows="3"
+          placeholder="Опишите задачу простым языком — например: «открой gmail, удали все письма с темой ‘реклама’». Cmd/Ctrl+Enter — запустить."
+          autocomplete="off"
+          spellcheck="true"
+        ></textarea>
+        <div class="composer-actions">
+          <div class="composer-hint">
+            <kbd>⌘</kbd>+<kbd>Enter</kbd> — запуск
+          </div>
+          <div class="composer-buttons">
+            <button id="clear-btn" class="btn btn-ghost" title="Очистить ленту событий">очистить</button>
+            <button id="cancel-btn" class="btn btn-ghost" disabled>остановить</button>
+            <button id="run-btn" class="btn btn-primary">
+              <span class="btn-icon">▶</span>
+              запустить
+            </button>
+          </div>
         </div>
       </div>
 
-      <div id="timeline" class="timeline">
-        <div class="hint">Start by typing a task and pressing run. Watch the browser drive itself in the noVNC pane on the right; tool calls stream here.</div>
+      <!-- Onboarding / examples shown when timeline is empty -->
+      <div id="welcome" class="welcome">
+        <div class="welcome-hi">Что нужно сделать?</div>
+        <p class="welcome-desc">
+          Агент сам откроет нужные сайты, разберётся в интерфейсе и доведёт задачу до конца.
+          Если потребуется уточнение — он спросит. Если задача затронет что-то необратимое
+          (удалить, отправить, оплатить) — переспросит перед действием.
+        </p>
+        <div class="welcome-section-title">Готовые примеры — нажмите, чтобы вставить</div>
+        <div class="example-grid">
+          <button class="example-card" data-task="Открой https://news.ycombinator.com, найди самую обсуждаемую статью за сегодня и расскажи о чём она.">
+            <div class="example-icon">📰</div>
+            <div class="example-title">Дайджест Hacker News</div>
+            <div class="example-text">Топовая статья дня — суть в двух абзацах</div>
+          </button>
+          <button class="example-card" data-task="Зайди в Яндекс.Почту, посмотри последние 10 писем и удали те, что выглядят как спам.">
+            <div class="example-icon">✉</div>
+            <div class="example-title">Очистка почты</div>
+            <div class="example-text">Просмотреть входящие и убрать спам</div>
+          </button>
+          <button class="example-card" data-task="Найди на hh.ru три вакансии Python-разработчика в Москве с зарплатой от 300к и пришли ссылки.">
+            <div class="example-icon">💼</div>
+            <div class="example-title">Поиск вакансий</div>
+            <div class="example-text">Подобрать 3 подходящие вакансии</div>
+          </button>
+          <button class="example-card" data-task="Открой https://example.com, найди ссылку на дополнительную информацию и перейди по ней — расскажи, куда она ведёт.">
+            <div class="example-icon">🔗</div>
+            <div class="example-title">Простая навигация</div>
+            <div class="example-text">Открыть страницу и пройти по ссылке</div>
+          </button>
+        </div>
+        <div class="welcome-tip">
+          💡 <b>Совет.</b> Чем конкретнее запрос — тем лучше результат.
+          Указывайте сайт, что искать и в каком виде хотите получить ответ.
+        </div>
       </div>
 
-      <div id="ask-bar" class="ask-bar hidden">
-        <div class="ask-question" id="ask-question"></div>
-        <div class="ask-input-row">
-          <input id="ask-input" type="text" placeholder="answer…" autocomplete="off">
-          <button id="ask-submit">send</button>
+      <div id="timeline" class="timeline" hidden></div>
+
+      <!-- Ask user modal -->
+      <div id="ask-bar" class="ask-bar hidden" role="dialog" aria-live="polite">
+        <div class="ask-bar-inner">
+          <div class="ask-header">
+            <span class="ask-icon">❓</span>
+            <span class="ask-title">Агент задаёт вопрос</span>
+          </div>
+          <div class="ask-question" id="ask-question"></div>
+          <div class="ask-input-row">
+            <input id="ask-input" type="text" placeholder="ваш ответ…" autocomplete="off">
+            <button id="ask-submit" class="btn btn-primary">ответить</button>
+          </div>
+          <div class="ask-tip">Подсказка: <kbd>yes</kbd> — разрешить разово, <kbd>always</kbd> — разрешить до конца сессии.</div>
         </div>
       </div>
     </section>
 
-    <section class="right">
-      <div class="right-header">
-        <span>browser (noVNC)</span>
-        <a id="novnc-link" href="#" target="_blank">open in new tab ↗</a>
+    <!-- RIGHT: browser preview + scratchpad -->
+    <section class="pane pane-right">
+      <div class="vnc-header">
+        <div class="vnc-title">
+          <span class="vnc-icon">🌐</span>
+          <span>Браузер агента</span>
+        </div>
+        <div class="vnc-actions">
+          <button id="vnc-reload" class="icon-btn" title="Перезагрузить просмотр">↻</button>
+          <a id="novnc-link" href="#" target="_blank" rel="noopener" class="link">
+            открыть в новой вкладке ↗
+          </a>
+        </div>
       </div>
       <div class="vnc-frame">
+        <div id="vnc-loading" class="vnc-loading">
+          <div class="vnc-loading-spinner"></div>
+          <div>подключение к noVNC…</div>
+          <div class="vnc-loading-hint">если не подключается — проверьте, что Docker-контейнер запущен и порт 6080 открыт</div>
+        </div>
         <iframe id="vnc-iframe" allow="clipboard-read; clipboard-write" title="noVNC"></iframe>
       </div>
+
       <div class="scratchpad">
-        <div class="scratchpad-header">scratchpad</div>
-        <div id="scratchpad-body" class="scratchpad-body"><div class="scratchpad-empty">empty</div></div>
+        <div class="scratchpad-header" id="scratchpad-toggle">
+          <span class="scratchpad-icon">📒</span>
+          <span class="scratchpad-title">Память агента</span>
+          <span class="scratchpad-count" id="scratchpad-count">0</span>
+          <span class="scratchpad-chevron">▾</span>
+        </div>
+        <div id="scratchpad-body" class="scratchpad-body">
+          <div class="scratchpad-empty">пока пусто — агент сохранит сюда то, что нужно помнить между шагами</div>
+        </div>
       </div>
     </section>
   </main>
+
+  <!-- Settings modal -->
+  <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close="settings"></div>
+    <div class="modal-window">
+      <div class="modal-header">
+        <span>Настройки и сведения</span>
+        <button class="icon-btn" data-close="settings">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-section">
+          <div class="settings-section-title">Отображение</div>
+          <label class="settings-row">
+            <input type="checkbox" id="opt-show-details" checked>
+            <span>Показывать технические метрики (токены, кэш)</span>
+          </label>
+          <label class="settings-row">
+            <input type="checkbox" id="opt-show-thinking" checked>
+            <span>Показывать «размышления» агента</span>
+          </label>
+          <label class="settings-row">
+            <input type="checkbox" id="opt-autoscroll" checked>
+            <span>Автопрокрутка ленты событий</span>
+          </label>
+          <label class="settings-row">
+            <input type="checkbox" id="opt-notify-done">
+            <span>Звуковое уведомление по завершении</span>
+          </label>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">Сессия</div>
+          <div class="settings-info-grid">
+            <div class="settings-info-key">Состояние</div>
+            <div class="settings-info-val" id="info-state">—</div>
+            <div class="settings-info-key">Стоимость</div>
+            <div class="settings-info-val" id="info-cost">$0.0000</div>
+            <div class="settings-info-key">Шагов</div>
+            <div class="settings-info-val" id="info-steps">0</div>
+            <div class="settings-info-key">Tool calls</div>
+            <div class="settings-info-val" id="info-tools">0</div>
+            <div class="settings-info-key">noVNC URL</div>
+            <div class="settings-info-val" id="info-novnc">—</div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">Подсказки</div>
+          <ul class="settings-tips">
+            <li>Если агент застрял, можно остановить его кнопкой «остановить» и перезапустить с уточнениями.</li>
+            <li>Логины и куки сохраняются в Docker-volume — авторизуйтесь один раз через <code>python -m agent login &lt;url&gt;</code>.</li>
+            <li>Кэп бюджета и шагов настраивается через <code>MAX_COST_USD</code> и <code>MAX_STEPS</code> в <code>.env</code>.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="/static/app.js"></script>
 </body>
